@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 void showFlagFallPopup(
   BuildContext context, {
@@ -41,33 +43,39 @@ class _FlagFallPopup extends StatefulWidget {
 }
 
 class _FlagFallPopupState extends State<_FlagFallPopup>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
+    with TickerProviderStateMixin {
+  late final AnimationController _entry;
+  late final AnimationController _glow;
   late final Animation<double> _fade;
-  late final Animation<Offset> _slide;
+  late final Animation<double> _scale;
   Timer? _dismissTimer;
   bool _closing = false;
 
-  static const _showDuration = Duration(milliseconds: 3200);
-  static const _animDuration = Duration(milliseconds: 260);
+  static const _autoDismiss = Duration(milliseconds: 6000);
+  static const _entryDuration = Duration(milliseconds: 520);
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: _animDuration);
-    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
-    _slide = Tween<Offset>(begin: const Offset(0, -0.4), end: Offset.zero)
-        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
-    _controller.forward();
-    _dismissTimer = Timer(_showDuration, _close);
+    _entry = AnimationController(vsync: this, duration: _entryDuration);
+    _glow = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat(reverse: true);
+    _fade = CurvedAnimation(parent: _entry, curve: Curves.easeOut);
+    _scale = CurvedAnimation(parent: _entry, curve: Curves.easeOutBack);
+    _entry.forward();
+    HapticFeedback.heavyImpact();
+    _dismissTimer = Timer(_autoDismiss, _close);
   }
 
   Future<void> _close() async {
     if (_closing) return;
     _closing = true;
     _dismissTimer?.cancel();
-    if (_controller.isAnimating || _controller.status == AnimationStatus.completed) {
-      await _controller.reverse();
+    _glow.stop();
+    if (mounted) {
+      await _entry.reverse();
     }
     widget.onDone();
   }
@@ -75,129 +83,357 @@ class _FlagFallPopupState extends State<_FlagFallPopup>
   @override
   void dispose() {
     _dismissTimer?.cancel();
-    _controller.dispose();
+    _entry.dispose();
+    _glow.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final accent = Theme.of(context).colorScheme.primary;
-    final topPadding = MediaQuery.of(context).padding.top;
+    const accent = Color(0xFFFFB86B);
+    const danger = Color(0xFFFF5C5C);
+    const bg = Color(0xFF0B0D10);
 
-    return Positioned(
-      top: topPadding + kToolbarHeight + 8,
-      left: 12,
-      right: 12,
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
-          child: FadeTransition(
-            opacity: _fade,
-            child: SlideTransition(
-              position: _slide,
-              child: Material(
-                color: Colors.transparent,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1B1E24),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: accent.withValues(alpha: 0.35),
-                      width: 1.2,
+    return Positioned.fill(
+      child: AnimatedBuilder(
+        animation: Listenable.merge([_entry, _glow]),
+        builder: (context, _) {
+          final fade = _fade.value;
+          final glow = _glow.value;
+          return Stack(
+            children: [
+              Opacity(
+                opacity: fade,
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _close,
+                    child: Container(
+                      color: Colors.black.withValues(alpha: 0.55),
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.45),
-                        blurRadius: 24,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: accent.withValues(alpha: 0.15),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(Icons.flag_rounded, color: accent, size: 20),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${widget.loserName} bayrağını düşürdü',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 2),
-                            Text.rich(
-                              TextSpan(
-                                children: [
-                                  TextSpan(
-                                    text: widget.winnerName,
-                                    style: TextStyle(
-                                      color: accent,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                  const TextSpan(
-                                    text: '  +1 puan',
-                                    style: TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (widget.onNewMatch != null)
-                        TextButton(
-                          onPressed: () {
-                            widget.onNewMatch!();
-                            _close();
-                          },
-                          style: TextButton.styleFrom(
-                            foregroundColor: accent,
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            minimumSize: const Size(0, 32),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          child: const Text(
-                            'Yeni maç',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.3,
-                            ),
-                          ),
-                        ),
-                      IconButton(
-                        icon: const Icon(Icons.close, size: 18),
-                        color: Colors.white54,
-                        splashRadius: 18,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints.tightFor(width: 28, height: 28),
-                        onPressed: _close,
-                      ),
-                    ],
                   ),
                 ),
+              ),
+              Center(
+                child: FadeTransition(
+                  opacity: _fade,
+                  child: ScaleTransition(
+                    scale: Tween<double>(begin: 0.82, end: 1.0).animate(_scale),
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 480),
+                        child: _Card(
+                          loserName: widget.loserName,
+                          winnerName: widget.winnerName,
+                          accent: accent,
+                          danger: danger,
+                          bg: bg,
+                          glow: glow,
+                          onClose: _close,
+                          onNewMatch: widget.onNewMatch == null
+                              ? null
+                              : () {
+                                  HapticFeedback.selectionClick();
+                                  widget.onNewMatch!();
+                                  _close();
+                                },
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _Card extends StatelessWidget {
+  final String loserName;
+  final String winnerName;
+  final Color accent;
+  final Color danger;
+  final Color bg;
+  final double glow;
+  final VoidCallback onClose;
+  final VoidCallback? onNewMatch;
+
+  const _Card({
+    required this.loserName,
+    required this.winnerName,
+    required this.accent,
+    required this.danger,
+    required this.bg,
+    required this.glow,
+    required this.onClose,
+    this.onNewMatch,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final glowAlpha = 0.30 + 0.45 * glow;
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        decoration: BoxDecoration(
+          color: bg,
+          border: Border.all(color: accent, width: 3),
+          boxShadow: [
+            BoxShadow(
+              color: accent.withValues(alpha: glowAlpha),
+              blurRadius: 48,
+              spreadRadius: 2,
+            ),
+            BoxShadow(
+              color: danger.withValues(alpha: 0.18 + 0.22 * glow),
+              blurRadius: 70,
+              offset: const Offset(0, 14),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(26, 20, 26, 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _TitleStripe(accent: accent, danger: danger, glow: glow),
+              const SizedBox(height: 22),
+              Icon(
+                Icons.flag_rounded,
+                size: 72,
+                color: danger,
+                shadows: [
+                  Shadow(
+                    color: danger.withValues(alpha: 0.4 + 0.4 * glow),
+                    blurRadius: 28,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                loserName.toUpperCase(),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontFamily: 'Courier',
+                  fontSize: 34,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                  letterSpacing: 4,
+                  height: 1.0,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '· süresi bitti ·',
+                style: TextStyle(
+                  fontFamily: 'Courier',
+                  fontSize: 12,
+                  color: Colors.white.withValues(alpha: 0.55),
+                  letterSpacing: 4,
+                ),
+              ),
+              const SizedBox(height: 22),
+              _Divider(accent: accent),
+              const SizedBox(height: 18),
+              _WinnerRow(winnerName: winnerName, accent: accent, bg: bg),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  if (onNewMatch != null) ...[
+                    Expanded(
+                      child: _PixelButton(
+                        label: 'YENİ MAÇ',
+                        color: accent,
+                        filled: true,
+                        onTap: onNewMatch!,
+                        bg: bg,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  Expanded(
+                    child: _PixelButton(
+                      label: 'KAPAT',
+                      color: Colors.white70,
+                      filled: false,
+                      onTap: onClose,
+                      bg: bg,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TitleStripe extends StatelessWidget {
+  final Color accent;
+  final Color danger;
+  final double glow;
+  const _TitleStripe({
+    required this.accent,
+    required this.danger,
+    required this.glow,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.14),
+        border: Border.all(
+          color: accent.withValues(alpha: 0.7),
+          width: 1.5,
+        ),
+      ),
+      child: Text(
+        '◆  FLAG  FALLEN  ◆',
+        style: TextStyle(
+          fontFamily: 'Courier',
+          fontSize: 13,
+          fontWeight: FontWeight.w900,
+          color: accent,
+          letterSpacing: 4,
+          shadows: [
+            Shadow(
+              color: accent.withValues(alpha: 0.5 + 0.4 * glow),
+              blurRadius: 14,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Divider extends StatelessWidget {
+  final Color accent;
+  const _Divider({required this.accent});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 2,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.transparent,
+            accent.withValues(alpha: 0.7),
+            Colors.transparent,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WinnerRow extends StatelessWidget {
+  final String winnerName;
+  final Color accent;
+  final Color bg;
+  const _WinnerRow({
+    required this.winnerName,
+    required this.accent,
+    required this.bg,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.emoji_events_rounded, color: accent, size: 26),
+        const SizedBox(width: 10),
+        Flexible(
+          child: Text(
+            winnerName.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: 'Courier',
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+              color: accent,
+              letterSpacing: 3,
+              shadows: [
+                Shadow(
+                  color: accent.withValues(alpha: 0.6),
+                  blurRadius: 12,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(color: accent),
+          child: Text(
+            '+1',
+            style: TextStyle(
+              fontFamily: 'Courier',
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+              color: bg,
+              letterSpacing: 1,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PixelButton extends StatelessWidget {
+  final String label;
+  final Color color;
+  final bool filled;
+  final Color bg;
+  final VoidCallback onTap;
+
+  const _PixelButton({
+    required this.label,
+    required this.color,
+    required this.filled,
+    required this.bg,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final background = filled ? color : Colors.transparent;
+    final foreground = filled ? bg : color;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: background,
+            border: Border.all(color: color, width: 2),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'Courier',
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+                color: foreground,
+                letterSpacing: 3,
               ),
             ),
           ),

@@ -109,14 +109,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
             ),
           const SizedBox(height: 12),
-          ...kTimeControlPresets.entries.map(
-            (e) => RadioListTile<String>(
-              value: e.key,
-              groupValue: currentPreset,
-              title: Text(e.value),
-              onChanged: (v) {
-                if (v != null) widget.client.setTimeControlPreset(v);
-              },
+          RadioGroup<String>(
+            groupValue: currentPreset,
+            onChanged: (v) {
+              if (v != null) widget.client.setTimeControlPreset(v);
+            },
+            child: Column(
+              children: [
+                for (final e in kTimeControlPresets.entries)
+                  RadioListTile<String>(
+                    value: e.key,
+                    title: Text(e.value),
+                  ),
+              ],
             ),
           ),
           const SizedBox(height: 28),
