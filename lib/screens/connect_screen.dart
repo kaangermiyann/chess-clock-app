@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 
-import '../services/clock_client.dart';
-import 'home_screen.dart';
+import '../services/remote_clock_client.dart';
 
 class ConnectScreen extends StatefulWidget {
-  final ClockClient client;
-  const ConnectScreen({super.key, required this.client});
+  final void Function(RemoteClockClient client) onConnected;
+  final String? initialUrl;
+
+  const ConnectScreen({
+    super.key,
+    required this.onConnected,
+    this.initialUrl,
+  });
 
   @override
   State<ConnectScreen> createState() => _ConnectScreenState();
@@ -20,7 +25,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
   void initState() {
     super.initState();
     _urlController = TextEditingController(
-      text: widget.client.url ?? 'ws://localhost:8765',
+      text: widget.initialUrl ?? 'ws://localhost:8765',
     );
   }
 
@@ -40,15 +45,17 @@ class _ConnectScreenState extends State<ConnectScreen> {
       _connecting = true;
       _errorText = null;
     });
+    final client = RemoteClockClient();
     try {
-      await widget.client.connect(url);
-      if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => HomeScreen(client: widget.client),
-        ),
-      );
+      await client.connect(url);
+      if (!mounted) {
+        client.dispose();
+        return;
+      }
+      widget.onConnected(client);
+      Navigator.of(context).pop();
     } catch (e) {
+      client.dispose();
       if (!mounted) return;
       setState(() {
         _errorText = 'Bağlanılamadı: $e';
@@ -60,7 +67,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Chess Clock')),
+      appBar: AppBar(title: const Text('Saate bağlan')),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
@@ -71,7 +78,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text(
-                  'Satranç saati sunucusuna bağlan',
+                  'Fiziksel saate bağlan',
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
                   textAlign: TextAlign.center,
                 ),
@@ -100,6 +107,11 @@ class _ConnectScreenState extends State<ConnectScreen> {
                           )
                         : const Text('Bağlan', style: TextStyle(fontSize: 16)),
                   ),
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: _connecting ? null : () => Navigator.of(context).pop(),
+                  child: const Text('İptal, offline devam et'),
                 ),
                 const SizedBox(height: 16),
                 Text(

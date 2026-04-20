@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
-import 'screens/connect_screen.dart';
+import 'screens/home_screen.dart';
 import 'services/clock_client.dart';
+import 'services/local_clock_client.dart';
 
 void main() {
   runApp(const ChessClockApp());
@@ -15,12 +16,20 @@ class ChessClockApp extends StatefulWidget {
 }
 
 class _ChessClockAppState extends State<ChessClockApp> {
-  final ClockClient _client = ClockClient();
+  ClockClient _client = LocalClockClient();
 
   @override
   void dispose() {
     _client.dispose();
     super.dispose();
+  }
+
+  void _switchBackend(ClockClient next) {
+    final old = _client;
+    setState(() {
+      _client = next;
+    });
+    old.dispose();
   }
 
   @override
@@ -37,7 +46,10 @@ class _ChessClockAppState extends State<ChessClockApp> {
         ),
         scaffoldBackgroundColor: const Color(0xFF121418),
       ),
-      home: ConnectScreen(client: _client),
+      home: HomeScreen(
+        client: _client,
+        onSwitchBackend: _switchBackend,
+      ),
     );
   }
 }
