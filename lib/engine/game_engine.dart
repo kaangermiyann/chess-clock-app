@@ -19,14 +19,20 @@ String timeControlModeKey(TimeControlMode m) {
 
 class TimeControlConfig {
   final int baseMs;
+  final int? p2BaseOverrideMs;
   final int incrementMs;
   final TimeControlMode mode;
 
   const TimeControlConfig({
     required this.baseMs,
+    this.p2BaseOverrideMs,
     this.incrementMs = 0,
     this.mode = TimeControlMode.suddenDeath,
   });
+
+  int get p1BaseMs => baseMs;
+  int get p2BaseMs => p2BaseOverrideMs ?? baseMs;
+  bool get isSymmetric => p2BaseOverrideMs == null || p2BaseOverrideMs == baseMs;
 }
 
 const Map<String, TimeControlConfig> kPresetConfigs = {
@@ -86,17 +92,17 @@ class GameEngine {
   })  : timeControl = timeControl ?? kPresetConfigs[kDefaultPreset]!,
         _p1 = _PlayerState(
           name: p1Name,
-          timeMs: (timeControl ?? kPresetConfigs[kDefaultPreset]!).baseMs,
+          timeMs: (timeControl ?? kPresetConfigs[kDefaultPreset]!).p1BaseMs,
         ),
         _p2 = _PlayerState(
           name: p2Name,
-          timeMs: (timeControl ?? kPresetConfigs[kDefaultPreset]!).baseMs,
+          timeMs: (timeControl ?? kPresetConfigs[kDefaultPreset]!).p2BaseMs,
         ),
         state = GameStateEnum.idle,
         active = 1,
         flaggedPlayer = null,
         _turnStartTimeMs =
-            (timeControl ?? kPresetConfigs[kDefaultPreset]!).baseMs;
+            (timeControl ?? kPresetConfigs[kDefaultPreset]!).p1BaseMs;
 
   _PlayerState _player(int n) => n == 1 ? _p1 : _p2;
 
@@ -162,14 +168,14 @@ class GameEngine {
   }
 
   void reset() {
-    _p1.timeMs = timeControl.baseMs;
-    _p2.timeMs = timeControl.baseMs;
+    _p1.timeMs = timeControl.p1BaseMs;
+    _p2.timeMs = timeControl.p2BaseMs;
     _p1.moves = 0;
     _p2.moves = 0;
     state = GameStateEnum.idle;
     active = 1;
     flaggedPlayer = null;
-    _turnStartTimeMs = timeControl.baseMs;
+    _turnStartTimeMs = timeControl.p1BaseMs;
   }
 
   void declareWinner(int winner) {
@@ -208,13 +214,31 @@ class GameEngine {
     return true;
   }
 
+  void setCustomTimeControl({
+    required int p1BaseMs,
+    required int p2BaseMs,
+    int incrementMs = 0,
+    TimeControlMode mode = TimeControlMode.suddenDeath,
+  }) {
+    final safeP1 = p1BaseMs < 0 ? 0 : p1BaseMs;
+    final safeP2 = p2BaseMs < 0 ? 0 : p2BaseMs;
+    final safeInc = incrementMs < 0 ? 0 : incrementMs;
+    setTimeControl(TimeControlConfig(
+      baseMs: safeP1,
+      p2BaseOverrideMs: safeP2 == safeP1 ? null : safeP2,
+      incrementMs: safeInc,
+      mode: mode,
+    ));
+  }
+
   GameSnapshot toSnapshot() {
     return GameSnapshot(
       state: state,
       active: active,
       flaggedPlayer: flaggedPlayer,
       timeControl: TimeControlSnapshot(
-        baseMs: timeControl.baseMs,
+        baseMs: timeControl.p1BaseMs,
+        p2BaseMs: timeControl.p2BaseMs,
         incrementMs: timeControl.incrementMs,
         mode: timeControlModeKey(timeControl.mode),
       ),
