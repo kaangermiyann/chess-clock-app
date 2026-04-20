@@ -105,7 +105,13 @@ class ClockClient extends ChangeNotifier {
 
   @override
   void dispose() {
-    disconnect();
+    _sub?.cancel();
+    _sub = null;
+    try {
+      _channel?.sink.close();
+    } catch (_) {}
+    _channel = null;
+    connected = false;
     super.dispose();
   }
 }
