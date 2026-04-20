@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../engine/game_engine.dart';
 import '../models/snapshot.dart';
 
 /// Abstract backend consumed by the UI. Two implementations:
@@ -25,6 +26,12 @@ abstract class ClockClient extends ChangeNotifier {
   void press(int player);
   void setNames(String p1, String p2);
   void setTimeControlPreset(String preset);
+  void setCustomTimeControl({
+    required int p1BaseMs,
+    required int p2BaseMs,
+    int incrementMs,
+    TimeControlMode mode,
+  });
   void declareWinner(int winner);
   void resetScores();
   void requestSnapshot();

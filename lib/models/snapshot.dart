@@ -43,6 +43,7 @@ String formatScore(double s) {
 
 class TimeControlSnapshot {
   final int baseMs;
+  final int p2BaseMs;
   final int incrementMs;
   final String mode;
 
@@ -50,22 +51,36 @@ class TimeControlSnapshot {
     required this.baseMs,
     required this.incrementMs,
     required this.mode,
-  });
+    int? p2BaseMs,
+  }) : p2BaseMs = p2BaseMs ?? baseMs;
 
-  factory TimeControlSnapshot.fromJson(Map<String, dynamic> j) =>
-      TimeControlSnapshot(
-        baseMs: (j['base_ms'] as num?)?.toInt() ?? 0,
-        incrementMs: (j['increment_ms'] as num?)?.toInt() ?? 0,
-        mode: (j['mode'] ?? 'sudden_death') as String,
-      );
+  factory TimeControlSnapshot.fromJson(Map<String, dynamic> j) {
+    final base = (j['base_ms'] as num?)?.toInt() ?? 0;
+    final p2 = (j['p2_base_ms'] as num?)?.toInt();
+    return TimeControlSnapshot(
+      baseMs: base,
+      p2BaseMs: p2 ?? base,
+      incrementMs: (j['increment_ms'] as num?)?.toInt() ?? 0,
+      mode: (j['mode'] ?? 'sudden_death') as String,
+    );
+  }
+
+  bool get isSymmetric => baseMs == p2BaseMs;
+
+  String _fmtBase(int ms) {
+    final sec = ms ~/ 1000;
+    final min = sec ~/ 60;
+    final rem = sec % 60;
+    if (min > 0) {
+      return rem == 0 ? '${min}m' : '${min}m${rem}s';
+    }
+    return '${sec}s';
+  }
 
   String get summary {
-    final baseSec = baseMs ~/ 1000;
-    final baseMin = baseSec ~/ 60;
-    final baseRem = baseSec % 60;
-    final baseStr = baseMin > 0
-        ? (baseRem == 0 ? '${baseMin}m' : '${baseMin}m${baseRem}s')
-        : '${baseSec}s';
+    final baseStr = isSymmetric
+        ? _fmtBase(baseMs)
+        : '${_fmtBase(baseMs)} / ${_fmtBase(p2BaseMs)}';
     final incSec = incrementMs ~/ 1000;
     final modeLabel = switch (mode) {
       'fischer' => 'Fischer',

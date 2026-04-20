@@ -106,6 +106,23 @@ class LocalClockClient extends ClockClient {
   }
 
   @override
+  void setCustomTimeControl({
+    required int p1BaseMs,
+    required int p2BaseMs,
+    int incrementMs = 0,
+    TimeControlMode mode = TimeControlMode.suddenDeath,
+  }) {
+    _engine.setCustomTimeControl(
+      p1BaseMs: p1BaseMs,
+      p2BaseMs: p2BaseMs,
+      incrementMs: incrementMs,
+      mode: mode,
+    );
+    _refresh();
+    _ensureTicker();
+  }
+
+  @override
   void declareWinner(int winner) {
     _engine.declareWinner(winner);
     _refresh();

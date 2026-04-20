@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import '../engine/game_engine.dart';
 import '../models/snapshot.dart';
 import 'clock_client.dart';
 
@@ -116,6 +117,20 @@ class RemoteClockClient extends ClockClient {
   @override
   void setTimeControlPreset(String preset) =>
       _send({'cmd': 'set_time_control', 'preset': preset});
+  @override
+  void setCustomTimeControl({
+    required int p1BaseMs,
+    required int p2BaseMs,
+    int incrementMs = 0,
+    TimeControlMode mode = TimeControlMode.suddenDeath,
+  }) =>
+      _send({
+        'cmd': 'set_time_control',
+        'p1_base_ms': p1BaseMs,
+        'p2_base_ms': p2BaseMs,
+        'increment_ms': incrementMs,
+        'mode': timeControlModeKey(mode),
+      });
   @override
   void declareWinner(int winner) =>
       _send({'cmd': 'declare_winner', 'winner': winner});
