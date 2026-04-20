@@ -2,15 +2,20 @@ import 'package:flutter/material.dart';
 
 import '../models/snapshot.dart';
 import '../services/clock_client.dart';
+import '../services/local_clock_client.dart';
 import '../widgets/flag_fall_popup.dart';
 import '../widgets/player_card.dart';
-import 'connect_screen.dart';
 import 'settings_screen.dart';
 import 'winner_dialog.dart';
 
 class HomeScreen extends StatefulWidget {
   final ClockClient client;
-  const HomeScreen({super.key, required this.client});
+  final void Function(ClockClient next)? onSwitchBackend;
+  const HomeScreen({
+    super.key,
+    required this.client,
+    this.onSwitchBackend,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -55,12 +60,19 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     _lastState = newState;
 
-    if (!widget.client.connected) {
+    if (!widget.client.isLocal && !widget.client.connected) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => ConnectScreen(client: widget.client)),
-        );
+        final cb = widget.onSwitchBackend;
+        if (cb != null) {
+          cb(LocalClockClient());
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Bağlantı koptu, offline moda dönüldü'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
       });
     }
 
@@ -70,9 +82,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _disconnect() async {
     await widget.client.disconnect();
     if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => ConnectScreen(client: widget.client)),
-    );
+    widget.onSwitchBackend?.call(LocalClockClient());
   }
 
   @override
@@ -98,16 +108,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 : () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => SettingsScreen(client: widget.client),
+                        builder: (_) => SettingsScreen(
+                          client: widget.client,
+                          onSwitchBackend: widget.onSwitchBackend,
+                        ),
                       ),
                     );
                   },
           ),
-          IconButton(
-            tooltip: 'Bağlantıyı kes',
-            icon: const Icon(Icons.logout),
-            onPressed: _disconnect,
-          ),
+          if (!widget.client.isLocal)
+            IconButton(
+              tooltip: 'Bağlantıyı kes',
+              icon: const Icon(Icons.logout),
+              onPressed: _disconnect,
+            ),
         ],
       ),
       body: snap == null
