@@ -2,10 +2,18 @@ import 'package:flutter/material.dart';
 
 import '../models/snapshot.dart';
 import '../services/clock_client.dart';
+import '../services/local_clock_client.dart';
+import 'connect_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   final ClockClient client;
-  const SettingsScreen({super.key, required this.client});
+  final void Function(ClockClient next)? onSwitchBackend;
+
+  const SettingsScreen({
+    super.key,
+    required this.client,
+    this.onSwitchBackend,
+  });
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -109,14 +117,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
             ),
           const SizedBox(height: 12),
-          ...kTimeControlPresets.entries.map(
-            (e) => RadioListTile<String>(
-              value: e.key,
-              groupValue: currentPreset,
-              title: Text(e.value),
-              onChanged: (v) {
-                if (v != null) widget.client.setTimeControlPreset(v);
-              },
+          RadioGroup<String>(
+            groupValue: currentPreset,
+            onChanged: (v) {
+              if (v != null) widget.client.setTimeControlPreset(v);
+            },
+            child: Column(
+              children: [
+                for (final e in kTimeControlPresets.entries)
+                  RadioListTile<String>(
+                    value: e.key,
+                    title: Text(e.value),
+                  ),
+              ],
             ),
           ),
           const SizedBox(height: 28),
@@ -149,9 +162,58 @@ class _SettingsScreenState extends State<SettingsScreen> {
               label: const Text('Skoru sıfırla'),
             ),
           ),
+          const SizedBox(height: 28),
+          const _SectionTitle('Bağlantı'),
+          const SizedBox(height: 8),
+          Text(
+            widget.client.isLocal
+                ? 'Şu an offline modda, tüm mantık telefonda çalışıyor.'
+                : 'Fiziksel saate bağlı: ${widget.client.url ?? "-"}',
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: widget.client.isLocal
+                ? OutlinedButton.icon(
+                    onPressed: widget.onSwitchBackend == null
+                        ? null
+                        : _openConnect,
+                    icon: const Icon(Icons.wifi),
+                    label: const Text('Saate bağlan'),
+                  )
+                : OutlinedButton.icon(
+                    onPressed: widget.onSwitchBackend == null
+                        ? null
+                        : _goOffline,
+                    icon: const Icon(Icons.wifi_off),
+                    label: const Text('Bağlantıyı kes (offline\'a dön)'),
+                  ),
+          ),
         ],
       ),
     );
+  }
+
+  Future<void> _openConnect() async {
+    final cb = widget.onSwitchBackend;
+    if (cb == null) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ConnectScreen(onConnected: cb),
+      ),
+    );
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  Future<void> _goOffline() async {
+    final cb = widget.onSwitchBackend;
+    if (cb == null) return;
+    await widget.client.disconnect();
+    cb(LocalClockClient());
+    if (!mounted) return;
+    Navigator.of(context).pop();
   }
 
   void _saveNames() {
